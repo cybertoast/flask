@@ -21,9 +21,9 @@ class _RequestGlobals(object):
 
 def has_request_context():
     """If you have code that wants to test if a request context is there or
-    not this function can be used.  For instance if you want to take advantage
-    of request information is it's available but fail silently if the request
-    object is unavailable.
+    not this function can be used.  For instance, you may want to take advantage
+    of request information if the request object is available, but fail
+    silently if it is unavailable.
 
     ::
 
@@ -149,6 +149,10 @@ class RequestContext(object):
         rv = _request_ctx_stack.pop()
         assert rv is self, 'Popped wrong request context.  (%r instead of %r)' \
             % (rv, self)
+
+        # get rid of circular dependencies at the end of the request
+        # so that we don't require the GC to be active.
+        rv.request.environ['werkzeug.request'] = None
 
     def __enter__(self):
         self.push()

@@ -74,7 +74,7 @@ enough to explain the basic principle.  When you have a class based view
 the question comes up what `self` points to.  The way this works is that
 whenever the request is dispatched a new instance of the class is created
 and the :meth:`~flask.views.View.dispatch_request` method is called with
-the parameters from the URL rule.  The class itself is instanciated with
+the parameters from the URL rule.  The class itself is instantiated with
 the parameters passed to the :meth:`~flask.views.View.as_view` function.
 For instance you can write a class like this::
 
@@ -144,14 +144,22 @@ routing system it does not make much sense to decorate the class itself.
 Instead you either have to decorate the return value of
 :meth:`~flask.views.View.as_view` by hand::
 
-    view = rate_limited(UserAPI.as_view('users'))
+    def user_required(f):
+        """Checks whether user is logged in or raises error 401."""
+        def decorator(*args, **kwargs):
+            if not g.user:
+                abort(401)
+            return f(*args, **kwargs)
+        return decorator
+
+    view = user_required(UserAPI.as_view('users'))
     app.add_url_rule('/users/', view_func=view)
 
 Starting with Flask 0.8 there is also an alternative way where you can
 specify a list of decorators to apply in the class declaration::
 
     class UserAPI(MethodView):
-        decorators = [rate_limited]
+        decorators = [user_required]
 
 Due to the implicit self from the caller's perspective you cannot use
 regular view decorators on the individual methods of the view however,
@@ -210,7 +218,8 @@ and explicitly mentioning the methods for each::
 
     user_view = UserAPI.as_view('user_api')
     app.add_url_rule('/users/', defaults={'user_id': None},
-                     view_func=user_view, methods=['GET', 'POST'])
+                     view_func=user_view, methods=['GET',])
+    app.add_url_rule('/users/', view_func=user_view, methods=['POST',])
     app.add_url_rule('/users/<int:user_id>', view_func=user_view,
                      methods=['GET', 'PUT', 'DELETE'])
 
@@ -220,8 +229,9 @@ registration code::
     def register_api(view, endpoint, url, pk='id', pk_type='int'):
         view_func = view.as_view(endpoint)
         app.add_url_rule(url, defaults={pk: None},
-                         view_func=view_func, methods=['GET', 'POST'])
-        app.add_url_rule('%s<%s:%s>' % (url, pk), view_func=view_func,
+                         view_func=view_func, methods=['GET',])
+        app.add_url_rule(url, view_func=view_func, methods=['POST',])
+        app.add_url_rule('%s<%s:%s>' % (url, pk_type, pk), view_func=view_func,
                          methods=['GET', 'PUT', 'DELETE'])
 
     register_api(UserAPI, 'user_api', '/users/', pk='user_id')

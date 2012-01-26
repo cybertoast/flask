@@ -10,8 +10,39 @@ Relase date to be decided, codename to be chosen.
 
 - The :func:`flask.url_for` function now can generate anchors to the
   generated links.
+- The :func:`flask.url_for` function now can also explicitly generate
+  URL rules specific to a given HTTP method.
 - Logger now only returns the debug log setting if it was not set
   explicitly.
+- Unregister a circular dependency between the WSGI environment and
+  the request object when shutting down the request.  This means that
+  environ ``werkzeug.request`` will be `None` after the response was
+  returned to the WSGI server but has the advantage that the garbage
+  collector is not needed on CPython to tear down the request unless
+  the user created circular dependencies themselves.
+- Session is now stored after callbacks so that if the session payload
+  is stored in the session you can still modify it in an after
+  request callback.
+- The :class:`flask.Flask` class will avoid importing the provided import name
+  if it can (the required first parameter), to benefit tools which build Flask
+  instances programmatically.  The Flask class will fall back to using import
+  on systems with custom module hooks, e.g. Google App Engine, or when the
+  import name is inside a zip archive (usually a .egg) prior to Python 2.7.
+- Blueprints now have a decorator to add custom template filters application
+  wide, :meth:`flask.Blueprint.app_template_filter`.
+- The Flask and Blueprint classes now have a non-decorator method for adding
+  custom template filters application wide,
+  :meth:`flask.Flask.add_template_filter` and
+  :meth:`flask.Blueprint.add_app_template_filter`.
+- The :func:`flask.get_flashed_messages` function now allows rendering flashed
+  message categories in separate blocks, through a ``category_filter``
+  argument.
+- The :meth:`flask.Flask.run` method now accepts `None` for `host` and `port`
+  arguments, using default values when `None`.  This allows for calling run
+  using configuration values, e.g. ``app.run(app.config.get('MYHOST'),
+  app.config.get('MYPORT'))``, with proper behavior whether or not a config
+  file is provided.
+
 
 Version 0.8.1
 -------------
@@ -59,7 +90,7 @@ Released on September 29th 2011, codename Rakija
   as defaults.
 - Added :attr:`flask.views.View.decorators` to support simpler decorating of
   pluggable (class based) views.
-- Fixed an issue where the test client if used with the with statement did not
+- Fixed an issue where the test client if used with the "with" statement did not
   trigger the execution of the teardown handlers.
 - Added finer control over the session cookie parameters.
 - HEAD requests to a method view now automatically dispatch to the `get`

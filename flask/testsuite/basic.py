@@ -279,6 +279,23 @@ class BasicFunctionalityTestCase(FlaskTestCase):
         match = re.search(r'\bexpires=([^;]+)', rv.headers['set-cookie'])
         self.assert_(match is None)
 
+    def test_session_stored_last(self):
+        app = flask.Flask(__name__)
+        app.secret_key = 'development-key'
+        app.testing = True
+
+        @app.after_request
+        def modify_session(response):
+            flask.session['foo'] = 42
+            return response
+        @app.route('/')
+        def dump_session_contents():
+            return repr(flask.session.get('foo'))
+
+        c = app.test_client()
+        self.assert_equal(c.get('/').data, 'None')
+        self.assert_equal(c.get('/').data, '42')
+
     def test_flashes(self):
         app = flask.Flask(__name__)
         app.secret_key = 'testkey'
@@ -292,8 +309,15 @@ class BasicFunctionalityTestCase(FlaskTestCase):
             self.assert_equal(list(flask.get_flashed_messages()), ['Zap', 'Zip'])
 
     def test_extended_flashing(self):
+        # Be sure app.testing=True below, else tests can fail silently.
+        #
+        # Specifically, if app.testing is not set to True, the AssertionErrors
+        # in the view functions will cause a 500 response to the test client
+        # instead of propagating exceptions.
+
         app = flask.Flask(__name__)
         app.secret_key = 'testkey'
+        app.testing = True
 
         @app.route('/')
         def index():
@@ -302,23 +326,68 @@ class BasicFunctionalityTestCase(FlaskTestCase):
             flask.flash(flask.Markup(u'<em>Testing</em>'), 'warning')
             return ''
 
-        @app.route('/test')
+        @app.route('/test/')
         def test():
+            messages = flask.get_flashed_messages()
+            self.assert_equal(len(messages), 3)
+            self.assert_equal(messages[0], u'Hello World')
+            self.assert_equal(messages[1], u'Hello World')
+            self.assert_equal(messages[2], flask.Markup(u'<em>Testing</em>'))
+            return ''
+
+        @app.route('/test_with_categories/')
+        def test_with_categories():
             messages = flask.get_flashed_messages(with_categories=True)
             self.assert_equal(len(messages), 3)
             self.assert_equal(messages[0], ('message', u'Hello World'))
             self.assert_equal(messages[1], ('error', u'Hello World'))
             self.assert_equal(messages[2], ('warning', flask.Markup(u'<em>Testing</em>')))
             return ''
-            messages = flask.get_flashed_messages()
-            self.assert_equal(len(messages), 3)
+
+        @app.route('/test_filter/')
+        def test_filter():
+            messages = flask.get_flashed_messages(category_filter=['message'], with_categories=True)
+            self.assert_equal(len(messages), 1)
+            self.assert_equal(messages[0], ('message', u'Hello World'))
+            return ''
+
+        @app.route('/test_filters/')
+        def test_filters():
+            messages = flask.get_flashed_messages(category_filter=['message', 'warning'], with_categories=True)
+            self.assert_equal(len(messages), 2)
+            self.assert_equal(messages[0], ('message', u'Hello World'))
+            self.assert_equal(messages[1], ('warning', flask.Markup(u'<em>Testing</em>')))
+            return ''
+
+        @app.route('/test_filters_without_returning_categories/')
+        def test_filters():
+            messages = flask.get_flashed_messages(category_filter=['message', 'warning'])
+            self.assert_equal(len(messages), 2)
             self.assert_equal(messages[0], u'Hello World')
-            self.assert_equal(messages[1], u'Hello World')
-            self.assert_equal(messages[2], flask.Markup(u'<em>Testing</em>'))
+            self.assert_equal(messages[1], flask.Markup(u'<em>Testing</em>'))
+            return ''
+
+        # Create new test client on each test to clean flashed messages.
 
         c = app.test_client()
         c.get('/')
-        c.get('/test')
+        c.get('/test/')
+
+        c = app.test_client()
+        c.get('/')
+        c.get('/test_with_categories/')
+
+        c = app.test_client()
+        c.get('/')
+        c.get('/test_filter/')
+
+        c = app.test_client()
+        c.get('/')
+        c.get('/test_filters/')
+
+        c = app.test_client()
+        c.get('/')
+        c.get('/test_filters_without_returning_categories/')
 
     def test_request_processing(self):
         app = flask.Flask(__name__)
